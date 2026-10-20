@@ -209,6 +209,162 @@ def render_structured_markdown(spec: PromptSpec) -> str:
     return "\n\n".join(sections) + "\n"
 
 
+def render_llama_3_3(spec: PromptSpec) -> str:
+    """Render a Llama 3.3 Instruct conversation using its message tokens. 
+       Note: these special tokens only act as tokens on raw-completion endpoints.
+       Through a chat API they are sent as plain text."""
+
+    if spec.allow_external_knowledge:
+        role = (
+            "You are a careful technical assistant. Prefer the provided context. If you "
+            "use outside knowledge, label it explicitly. If the context is insufficient, "
+            "say so. Do not invent facts, numbers, citations, or sources."
+        )
+        constraints = list(_SAFETY_CONSTRAINTS_OPEN)
+    else:
+        role = (
+            "You are a careful technical assistant. Use only the provided context unless "
+            "explicitly allowed otherwise. If the context is insufficient, say so. Do not "
+            "invent facts, numbers, citations, or sources."
+        )
+        constraints = list(_SAFETY_CONSTRAINTS_CLOSED)
+    constraints.extend(spec.constraints)
+
+    response_requirements = [
+        "Direct answer to the question.",
+        "Key evidence drawn from the provided context.",
+        "Limitations or uncertainties, stated explicitly when evidence is insufficient.",
+        "Suggested next steps if the provided information is not enough.",
+    ]
+    if spec.format_requirements:
+        response_requirements.extend(spec.format_requirements)
+
+    system_sections = [
+        role,
+        f"Task type: {spec.task_type}",
+        "Constraints:\n" + _render_bullets(constraints),
+        "Response requirements:\n"
+        + "\n".join(f"{i}. {req}" for i, req in enumerate(response_requirements, start=1)),
+    ]
+    if spec.max_output_tokens is not None:
+        system_sections.append(
+            "Length guidance: keep the response within approximately "
+            f"{spec.max_output_tokens} tokens."
+        )
+    system = "\n\n".join(system_sections)
+
+    context = spec.context.strip() or "(no context provided)"
+    question = spec.question.strip() or "(no question provided)"
+    user = (
+        "Use the following context and answer the question according to the system "
+        "instructions.\n\n"
+        f"Context:\n{context}\n\nQuestion:\n{question}"
+    )
+    return (
+        "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n"
+        f"{system}<|eot_id|>"
+        "<|start_header_id|>user<|end_header_id|>\n\n"
+        f"{user}<|eot_id|>"
+        "<|start_header_id|>assistant<|end_header_id|>\n\n"
+    )
+
+
+def render_deepseek_r1(spec: PromptSpec) -> str:
+    """Render DeepSeek-R1 using its user/assistant message markers.
+       Note: these special tokens only act as tokens on raw-completion endpoints.
+       Through a chat API they are sent as plain text."""
+
+    if spec.allow_external_knowledge:
+        role = (
+            "You are a careful technical assistant. Prefer the provided context. If you "
+            "use outside knowledge, label it explicitly. If the context is insufficient, "
+            "say so. Do not invent facts, numbers, citations, or sources."
+        )
+        constraints = list(_SAFETY_CONSTRAINTS_OPEN)
+    else:
+        role = (
+            "You are a careful technical assistant. Use only the provided context unless "
+            "explicitly allowed otherwise. If the context is insufficient, say so. Do not "
+            "invent facts, numbers, citations, or sources."
+        )
+        constraints = list(_SAFETY_CONSTRAINTS_CLOSED)
+    constraints.extend(spec.constraints)
+
+    response_requirements = [
+        "Direct answer to the question.",
+        "Key evidence drawn from the provided context.",
+        "Limitations or uncertainties, stated explicitly when evidence is insufficient.",
+        "Suggested next steps if the provided information is not enough.",
+    ]
+    if spec.format_requirements:
+        response_requirements.extend(spec.format_requirements)
+
+    sections = [
+        role,
+        f"Task type: {spec.task_type}",
+        "Constraints:\n" + _render_bullets(constraints),
+        "Response requirements:\n"
+        + "\n".join(f"{i}. {req}" for i, req in enumerate(response_requirements, start=1)),
+        "Context:\n" + (spec.context.strip() or "(no context provided)"),
+        "User question:\n" + (spec.question.strip() or "(no question provided)"),
+    ]
+    if spec.max_output_tokens is not None:
+        sections.append(
+            "Length guidance: keep the response within approximately "
+            f"{spec.max_output_tokens} tokens."
+        )
+    content = "\n\n".join(sections)
+    return "<｜begin▁of▁sentence｜><｜User｜>" + content + "<｜Assistant｜><think>\n"
+
+
+def render_deepseek_v3(spec: PromptSpec) -> str:
+    """Render DeepSeek-V3 using its user/assistant message markers.
+       Note: these special tokens only act as tokens on raw-completion endpoints.
+       Through a chat API they are sent as plain text."""
+
+    if spec.allow_external_knowledge:
+        role = (
+            "You are a careful technical assistant. Prefer the provided context. If you "
+            "use outside knowledge, label it explicitly. If the context is insufficient, "
+            "say so. Do not invent facts, numbers, citations, or sources."
+        )
+        constraints = list(_SAFETY_CONSTRAINTS_OPEN)
+    else:
+        role = (
+            "You are a careful technical assistant. Use only the provided context unless "
+            "explicitly allowed otherwise. If the context is insufficient, say so. Do not "
+            "invent facts, numbers, citations, or sources."
+        )
+        constraints = list(_SAFETY_CONSTRAINTS_CLOSED)
+    constraints.extend(spec.constraints)
+
+    response_requirements = [
+        "Direct answer to the question.",
+        "Key evidence drawn from the provided context.",
+        "Limitations or uncertainties, stated explicitly when evidence is insufficient.",
+        "Suggested next steps if the provided information is not enough.",
+    ]
+    if spec.format_requirements:
+        response_requirements.extend(spec.format_requirements)
+
+    sections = [
+        role,
+        f"Task type: {spec.task_type}",
+        "Constraints:\n" + _render_bullets(constraints),
+        "Response requirements:\n"
+        + "\n".join(f"{i}. {req}" for i, req in enumerate(response_requirements, start=1)),
+        "Context:\n" + (spec.context.strip() or "(no context provided)"),
+        "User question:\n" + (spec.question.strip() or "(no question provided)"),
+    ]
+    if spec.max_output_tokens is not None:
+        sections.append(
+            "Length guidance: keep the response within approximately "
+            f"{spec.max_output_tokens} tokens."
+        )
+    content = "\n\n".join(sections)
+    return "<｜begin▁of▁sentence｜><｜User｜>" + content + "<｜Assistant｜>"
+
+
 #: Registry of available templates. Add new templates here.
 TEMPLATES: dict[str, Callable[[PromptSpec], str]] = {
     "default": render_default,
@@ -220,4 +376,8 @@ TEMPLATES: dict[str, Callable[[PromptSpec], str]] = {
     "codex": render_code_agent,
     "structured_markdown": render_structured_markdown,
     "markdown": render_structured_markdown,
+    "llama_3_3": render_llama_3_3,
+    "llama3": render_llama_3_3,
+    "deepseek_r1": render_deepseek_r1,
+    "deepseek_v3": render_deepseek_v3,
 }
